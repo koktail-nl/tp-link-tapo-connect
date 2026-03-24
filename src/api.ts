@@ -195,6 +195,13 @@ export const loginDeviceByIp = async (
 ) => {
   // Attempts to login using newer klap protocol first, then fallback to legacy secure pass through protocol
   return loginKlapDeviceByIp(email, password, deviceIp).catch((error) => {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Don't fall back on credential errors - that's a user issue, not a protocol issue
+    if (errorMessage.includes('Invalid credentials') || errorMessage.includes('email or password incorrect')) {
+      throw error;
+    }
+
     console.warn(
       `Failed to login due to ${error}\nFalling back to legacy login method`,
     );
