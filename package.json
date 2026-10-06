@@ -1,9 +1,14 @@
 {
-  "name": "tp-link-tapo-connect",
-  "version": "2.0.15",
+  "name": "@koktail/tp-link-tapo-connect",
+  "version": "2.1.0",
   "description": "JS Library for connecting to TP-Link Tapo devices",
   "main": "dist/api.js",
   "types": "dist/api.d.ts",
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "!dist/**/*.test.*"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "jest",
@@ -34,5 +39,9 @@
     "local-devices": "^4.0.0",
     "macaddr": "^0.1.1",
     "uuid": "^8.3.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://npm.koktail.nl"
   }
 }

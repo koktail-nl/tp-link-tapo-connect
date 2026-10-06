@@ -29,6 +29,9 @@ export const loginDeviceByIp = async (
       if (error?.response?.status === 404) {
         throw new Error(`Klap protocol not supported`);
       }
+      if (error?.response?.status === 403) {
+        throw new Error(`Invalid credentials - device rejected authentication`);
+      }
       throw new Error(`handshake1 failed: ${error}`);
     });
 
@@ -67,6 +70,11 @@ export const loginDeviceByIp = async (
       throw new Error(`handshake2 failed: ${error}`);
     });
 
+  console.log(`[KLAP] Session established for ${deviceIp}, cookie: ${sessionCookie.substring(0, 30)}...`);
+
+  // Small delay to let device finalize session
+  await new Promise(resolve => setTimeout(resolve, 100));
+
   return createKlapEncryptionSession(
     deviceIp,
     localSeed,
@@ -89,55 +97,68 @@ const createKlapEncryptionSession = (
 
   let seq = deriveSeqFromIv(iv);
 
-  const encrypt = (payload: any) => {
+  const encrypt = (payload: any, requestSeq: Buffer) => {
     const payloadJson = JSON.stringify(payload);
     const cipher = createCipheriv(
       AES_CIPHER_ALGORITHM,
       key,
-      ivWithSeq(iv, seq),
+      ivWithSeq(iv, requestSeq),
     );
     var ciphertext = cipher.update(encode(payloadJson));
     return Buffer.concat([ciphertext, cipher.final()]);
   };
 
-  const decrypt = (payload: Buffer): any => {
+  const decrypt = (payload: Buffer, requestSeq: Buffer): any => {
     const cipher = createDecipheriv(
       AES_CIPHER_ALGORITHM,
       key,
-      ivWithSeq(iv, seq),
+      ivWithSeq(iv, requestSeq),
     );
     var ciphertext = cipher.update(payload.slice(32));
-    return JSON.parse(Buffer.concat([ciphertext, cipher.final()]).toString());
+    const decrypted = Buffer.concat([ciphertext, cipher.final()]).toString();
+    try {
+      return JSON.parse(decrypted);
+    } catch (e) {
+      console.error('[KLAP] Decrypt failed. Raw decrypted:', decrypted.substring(0, 200));
+      throw e;
+    }
   };
 
-  const encryptAndSign = (payload: any) => {
-    const ciphertext = encrypt(payload);
-    const signature = sha256(Buffer.concat([sig, seq, ciphertext]));
+  const encryptAndSign = (payload: any, requestSeq: Buffer) => {
+    const ciphertext = encrypt(payload, requestSeq);
+    const signature = sha256(Buffer.concat([sig, requestSeq, ciphertext]));
     return Buffer.concat([signature, ciphertext]);
   };
 
   const send = async (deviceRequest: any): Promise<any> => {
     seq = incrementSeq(seq);
+    const requestSeq = Buffer.from(seq);
 
-    const encryptedRequest = encryptAndSign(deviceRequest);
+    const encryptedRequest = encryptAndSign(deviceRequest, requestSeq);
 
-    const response = await axios({
-      method: "post",
-      url: `http://${deviceIp}/app/request`,
-      data: encryptedRequest,
-      responseType: "arraybuffer",
-      headers: {
-        Cookie: sessionCookie,
-      },
-      params: {
-        seq: seq.readInt32BE(),
-      },
-    });
+    try {
+      const response = await axios({
+        method: "post",
+        url: `http://${deviceIp}/app/request`,
+        data: encryptedRequest,
+        responseType: "arraybuffer",
+        headers: {
+          Cookie: sessionCookie,
+        },
+        params: {
+          seq: requestSeq.readInt32BE(),
+        },
+      });
 
-    const decryptedResponse = decrypt(response.data);
-    checkError(decryptedResponse);
+      const decryptedResponse = decrypt(response.data, requestSeq);
+      console.log(`[KLAP] Response for ${deviceIp}:`, JSON.stringify(decryptedResponse).substring(0, 200));
+      checkError(decryptedResponse);
 
-    return decryptedResponse.result;
+      return decryptedResponse.result;
+    } catch (error: any) {
+      console.error(`[KLAP] Request failed for ${deviceIp}: ${error?.response?.status || error.message}`);
+      throw error;
+    }
   };
 
   return TapoDevice({ send });

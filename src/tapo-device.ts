@@ -163,5 +163,5 @@ export const TapoDevice = ({ send }: TapoProtocol) => {
         }
         return await send(alarmInfoRequest)
       }
-    }     
+    }
 }
