@@ -46,14 +46,15 @@ export const loginDeviceByIp = async (
   const remoteSeed = responseBytes.slice(0, 16);
   const serverHash = responseBytes.slice(16);
 
-  const localAuthHash = generateAuthHash(email, password);
-  const localSeedAuthHash = handshake1AuthHash(
-    localSeed,
-    remoteSeed,
-    localAuthHash,
-  );
+  // A device can derive its login hash from the account email in lower case, while the cloud
+  // login accepts the email in any casing, so the email matches as given or in lower case.
+  const localAuthHash = [email, email.toLowerCase()]
+    .map((candidate) => generateAuthHash(candidate, password))
+    .find((authHash) =>
+      compare(handshake1AuthHash(localSeed, remoteSeed, authHash), serverHash),
+    );
 
-  if (!compare(localSeedAuthHash, serverHash)) {
+  if (!localAuthHash) {
     throw new Error("email or password incorrect");
   }
 
