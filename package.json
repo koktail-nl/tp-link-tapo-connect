@@ -1,6 +1,6 @@
 {
   "name": "@koktail/tp-link-tapo-connect",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "JS Library for connecting to TP-Link Tapo devices",
   "main": "dist/api.js",
   "types": "dist/api.d.ts",
