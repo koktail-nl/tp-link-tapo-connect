@@ -6,7 +6,7 @@
       "moduleResolution": "node",
       "sourceMap": true,
       "outDir": "dist",
-      "lib": ["es2017", "es7", "es6", "dom"],
+      "lib": ["es2017", "es2022.error", "es7", "es6", "dom"],
       "declaration": true,
       "typeRoots": ["./node_modules/@types"]
     },
